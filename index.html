@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>몰레큘 2048: 랭킹 에디션</title>
+    <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #070b14;
+            --bg-card: #151c2c;
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff007a;
+            --tile-gas: #0ea5e9;
+            --tile-liquid: #2563eb;
+            --tile-solid: #475569;
+            --tile-elem: #f8fafc;
+            --cell-size: 78px;
+            --gap: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans KR', sans-serif; -webkit-user-select: none; touch-action: none; }
+        body { background-color: var(--bg-dark); color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow: hidden; }
+
+        /* Navigation */
+        .nav-tabs {
+            display: flex; width: 100%; max-width: 400px; background: var(--bg-card);
+            margin-top: 10px; border-radius: 12px; padding: 5px; border: 1px solid #2d3748;
+        }
+        .tab-btn {
+            flex: 1; padding: 10px; border: none; background: none; color: #64748b;
+            font-weight: 900; cursor: pointer; border-radius: 8px; transition: 0.3s;
+        }
+        .tab-btn.active { background: var(--neon-blue); color: #070b14; }
+
+        .section { display: none; width: 100%; flex-direction: column; align-items: center; animation: fadeIn 0.4s; }
+        .section.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .eng { font-family: 'Righteous', cursive; }
+
+        header { width: 100%; max-width: 400px; padding: 10px 15px; }
+        .top-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .card { background: var(--bg-card); padding: 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        .card .label { font-size: 0.6rem; color: #64748b; font-weight: 700; }
+        .card .val { font-size: 1rem; font-weight: 900; color: var(--neon-blue); }
+
+        .mission-panel { 
+            background: linear-gradient(135deg, #1e293b, #070b14); 
+            border-left: 4px solid var(--neon-pink); padding: 12px; border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+        .m-name { font-size: 1rem; font-weight: 900; color: #fff; }
+        .m-desc { font-size: 0.75rem; color: #94a3b8; margin: 4px 0; }
+        .m-prog { font-family: 'Righteous'; font-size: 0.8rem; color: var(--neon-blue); }
+
+        #board-wrapper {
+            position: relative; width: 372px; height: 372px;
+            background: #273142; border-radius: 16px; padding: var(--gap);
+            margin-top: 10px; box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+        .grid { display: grid; grid-template-columns: repeat(4, var(--cell-size)); gap: var(--gap); }
+        .grid-cell { width: var(--cell-size); height: var(--cell-size); background: #151c2c; border-radius: 10px; }
+        #tile-layer { position: absolute; top: var(--gap); left: var(--gap); z-index: 10; }
+        .tile {
+            position: absolute; width: var(--cell-size); height: var(--cell-size);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            border-radius: 10px; transition: transform 0.1s ease-in-out;
+            font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+        .tile .sym { font-family: 'Righteous'; font-size: 2rem; }
+        .tile .name { font-size: 0.7rem; margin-top: 2px; }
+        .t-elem { background: var(--tile-elem); color: #0f172a; }
+        .t-gas { background: var(--tile-gas); color: white; border: 2px solid #7dd3fc; }
+        .t-liq { background: var(--tile-liquid); color: white; border: 2px solid #60a5fa; }
+        .t-sol { background: var(--tile-solid); color: white; border: 2px solid #94a3b8; }
+
+        .rank-container { width: 100%; max-width: 400px; padding: 20px; }
+        .rank-list { width: 100%; background: var(--bg-card); border-radius: 20px; border: 1px solid #2d3748; overflow: hidden; }
+        .rank-item { display: grid; grid-template-columns: 50px 1fr 100px; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: center; }
+        .rank-item.top-1 { background: linear-gradient(90deg, rgba(255,215,0,0.2), transparent); border-left: 5px solid gold; }
+        .rank-item.top-1 .rank-n { color: gold; font-family: 'Righteous'; font-size: 1.8rem; }
+        .rank-item.top-2 { background: linear-gradient(90deg, rgba(192,192,192,0.15), transparent); border-left: 5px solid silver; }
+        .rank-item.top-2 .rank-n { color: silver; font-family: 'Righteous'; font-size: 1.5rem; }
+        .rank-item.top-3 { background: linear-gradient(90deg, rgba(205,127,50,0.15), transparent); border-left: 5px solid #cd7f32; }
+        .rank-item.top-3 .rank-n { color: #cd7f32; font-family: 'Righteous'; font-size: 1.3rem; }
+        .rank-score { text-align: right; font-family: 'Righteous'; font-size: 1.2rem; color: var(--neon-blue); }
+
+        .particle { position: absolute; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; z-index: 100; }
+        @keyframes explode { to { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } }
+
+        .overlay { position: fixed; inset: 0; background: rgba(7, 11, 20, 0.98); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
+        .overlay.active { display: flex; }
+        .modal-card { background: var(--bg-card); width: 90%; max-width: 360px; padding: 30px; border-radius: 24px; border: 1px solid var(--neon-blue); text-align: center; }
+        input { width: 100%; padding: 14px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #2d3748; background: #070b14; color: white; font-weight: bold; }
+        .btn { background: var(--neon-blue); color: #070b14; border: none; padding: 14px 28px; border-radius: 10px; font-weight: 900; cursor: pointer; width: 100%; margin-top: 10px; }
+
+        #stage-banner { position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%); font-family: 'Righteous'; font-size: 3.5rem; color: var(--neon-blue); text-shadow: 0 0 20px var(--neon-blue); pointer-events: none; display: none; z-index: 3000; }
+    </style>
+</head>
+<body>
+
+<div class="nav-tabs">
+    <button id="btn-game" class="tab-btn active" onclick="switchTab('game')">GAME</button>
+    <button id="btn-rank" class="tab-btn" onclick="switchTab('rank')">RANKING</button>
+</div>
+
+<section id="section-game" class="section active">
+    <header>
+        <div class="top-info">
+            <div class="card"><div class="label">Researcher</div><div id="ui-user" class="val">-</div></div>
+            <div class="card"><div class="label eng">Score</div><div id="ui-score" class="val eng">0</div></div>
+        </div>
+        <div class="mission-panel">
+            <div id="ui-m-no" class="m-no eng" style="color:var(--neon-pink); font-size:0.7rem;">STAGE 01</div>
+            <div id="ui-m-name" class="m-name">실험 명칭</div>
+            <div id="ui-m-desc" class="m-desc">실험 목표 설명...</div>
+            <div id="ui-m-prog" class="m-prog eng">0 / 0</div>
+        </div>
+    </header>
+    <div id="board-wrapper">
+        <div class="grid">
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+        </div>
+        <div id="tile-layer"></div>
+    </div>
+</section>
+
+<section id="section-rank" class="section">
+    <div class="rank-container">
+        <h2 class="eng" style="text-align:center; margin-bottom:15px; color:var(--neon-pink);">GLOBAL TOP 10</h2>
+        <div id="rank-list" class="rank-list"><div style="padding:40px; text-align:center; color:#64748b;">로딩 중...</div></div>
+    </div>
+</section>
+
+<div id="stage-banner">STAGE CLEAR!</div>
+
+<div id="modal-start" class="overlay active">
+    <div class="modal-card">
+        <h1 class="eng" style="color:var(--neon-blue); font-size: 2rem; margin-bottom:10px;">MOLECULE 2048</h1>
+        <p style="color:#94a3b8; font-size: 0.85rem; margin-bottom:25px;">원소 결합 가상 실험실</p>
+        <input type="text" id="in-id" placeholder="학번 (예: 20501)">
+        <input type="text" id="in-name" placeholder="이름">
+        <button class="btn" onclick="startGame()">실험 시작</button>
+    </div>
+</div>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzSVBsgbl6m7Y_VyhOcFfTH6AVFhgqA_OSBrqNxqwuYzcTB76J4ZuTkkkee2yovdzpH/exec"; 
+
+const MOLECULES = {
+    'H': { type: 'elem', w: 1, col: 't-elem', html: 'H' },
+    'O': { type: 'elem', w: 16, col: 't-elem', html: 'O' },
+    'C': { type: 'elem', w: 12, col: 't-elem', html: 'C' },
+    'N': { type: 'elem', w: 14, col: 't-elem', html: 'N' },
+    'Cl': { type: 'elem', w: 35.5, col: 't-elem', html: 'Cl' },
+    'Na': { type: 'elem', w: 23, col: 't-elem', html: 'Na' },
+    'H2': { type: 'gas', w: 2, col: 't-gas', name: '수소', html: 'H<sub>2</sub>' },
+    'O2': { type: 'gas', w: 32, col: 't-gas', name: '산소', html: 'O<sub>2</sub>' },
+    'N2': { type: 'gas', w: 28, col: 't-gas', name: '질소', html: 'N<sub>2</sub>' },
+    'CO2': { type: 'gas', w: 44, col: 't-gas', name: '이산화탄소', html: 'CO<sub>2</sub>' },
+    'NH3': { type: 'gas', w: 17, col: 't-gas', name: '암모니아', html: 'NH<sub>3</sub>' },
+    'HCl': { type: 'gas', w: 36.5, col: 't-gas', name: '염화수소', html: 'HCl' },
+    'H2O': { type: 'liq', w: 18, col: 't-liq', name: '물', html: 'H<sub>2</sub>O' },
+    'NaCl': { type: 'sol', w: 58.5, col: 't-sol', name: '소금', html: 'NaCl' }
+};
+
+const RECIPES = {
+    'H+H': 'H2', 'O+O': 'O2', 'N+N': 'N2', 'H2+O': 'H2O', 'O+H2': 'H2O',
+    'C+O2': 'CO2', 'O2+C': 'CO2', 'N2+H': 'NH3', 'H+N2': 'NH3',
+    'H+Cl': 'HCl', 'Cl+H': 'HCl', 'Na+Cl': 'NaCl', 'Cl+Na': 'NaCl'
+};
+
+const STAGES = [
+    { no: 1, name: "우주의 기본, 수소 기체", desc: "수소 기체(H₂) 1쌍 소멸", pool: ['H'], target: 'H2', count: 1 },
+    { no: 2, name: "생명의 호흡, 산소 기체", desc: "산소 기체(O₂) 1쌍 소멸", pool: ['O'], target: 'O2', count: 1 },
+    { no: 3, name: "수소 대량 합성", desc: "수소 기체(H₂) 2쌍 소멸", pool: ['H'], target: 'H2', count: 2 },
+    { no: 4, name: "산소 탱크 충전", desc: "산소 기체(O₂) 2쌍 소멸", pool: ['O'], target: 'O2', count: 2 },
+    { no: 5, name: "기체 기초 마스터", desc: "H₂와 O₂ 각 1쌍 소멸", pool: ['H', 'O'], target: 'ANY_GAS_5', count: 2 },
+    { no: 6, name: "물 분자의 탄생", desc: "물(H₂O) 1개 합성", pool: ['H', 'O'], target: 'MAKE_H2O', count: 1 },
+    { no: 7, name: "중력의 발견-물", desc: "물 1쌍 소멸 (아래로 가라앉음)", pool: ['H', 'O'], target: 'H2O', count: 1 },
+    { no: 8, name: "지구의 바다 만들기", desc: "물 2쌍 소멸", pool: ['H', 'O'], target: 'H2O', count: 2 },
+    { no: 9, name: "오아시스 건설", desc: "O₂ 1쌍과 H₂O 1쌍 소멸", pool: ['H', 'O'], target: 'MIX_9', count: 2 },
+    { no: 10, name: "H와 O의 조화", desc: "누적 4쌍 소멸", pool: ['H', 'O'], target: 'ANY_10', count: 4 },
+    { no: 11, name: "탄소 화합물의 시작", desc: "이산화탄소(CO₂) 1개 합성", pool: ['H', 'O', 'C'], target: 'MAKE_CO2', count: 1 },
+    { no: 12, name: "지구 온난화 경보", desc: "CO₂ 1쌍 소멸 (위로 떠오름)", pool: ['O', 'C'], target: 'CO2', count: 1 },
+    { no: 13, name: "탄소 배출권 확보", desc: "CO₂ 2쌍 소멸", pool: ['O', 'C'], target: 'CO2', count: 2 },
+    { no: 14, name: "식물의 광합성 재료", desc: "H₂O 1쌍과 CO₂ 1쌍 소멸", pool: ['H', 'O', 'C'], target: 'MIX_14', count: 2 },
+    { no: 15, name: "탄소 연구소 졸업", desc: "8,000점 달성하기", pool: ['H', 'O', 'C'], target: 'SCORE_GOAL', count: 8000 },
+    { no: 16, name: "질소 기체", desc: "질소 기체(N₂) 1쌍 소멸", pool: ['N'], target: 'N2', count: 1 },
+    { no: 17, name: "암모니아 합성", desc: "암모니아(NH₃) 1개 합성", pool: ['H', 'N'], target: 'MAKE_NH3', count: 1 },
+    { no: 18, name: "암모니아 가스 배출", desc: "NH₃ 1쌍 소멸", pool: ['H', 'N'], target: 'NH3', count: 1 },
+    { no: 19, name: "질소 화합물 대폭발", desc: "N₂와 NH₃ 각 1쌍 소멸", pool: ['H', 'N'], target: 'MIX_19', count: 2 },
+    { no: 20, name: "기체 혼합 제어실", desc: "12,000점 달성하기", pool: ['H', 'O', 'C', 'N'], target: 'SCORE_GOAL', count: 12000 },
+    { no: 21, name: "염화 수소", desc: "염화 수소(HCl) 1쌍 소멸", pool: ['H', 'Cl'], target: 'HCl', count: 1 },
+    { no: 22, name: "소금의 형성", desc: "소금(NaCl) 1개 합성", pool: ['Cl', 'Na'], target: 'MAKE_NaCl', count: 1 },
+    { no: 23, name: "소금 결정", desc: "NaCl 1쌍 소멸 (고체는 가라앉음)", pool: ['Cl', 'Na'], target: 'NaCl', count: 1 },
+    { no: 24, name: "소금 광산 채굴", desc: "NaCl 2쌍 소멸", pool: ['Cl', 'Na'], target: 'NaCl', count: 2 },
+    { no: 25, name: "염소 마스터", desc: "HCl과 NaCl 각 1쌍 소멸", pool: ['H', 'Cl', 'Na'], target: 'MIX_25', count: 2 },
+    { no: 26, name: "보드 위의 소금물", desc: "H₂O와 NaCl 각 1쌍 소멸", pool: ['H', 'O', 'Cl', 'Na'], target: 'MIX_26', count: 2 },
+    { no: 27, name: "대기 과학 총합", desc: "기체 5쌍 소멸", pool: ['H', 'O', 'C', 'N', 'Cl'], target: 'ANY_GAS_ALL', count: 5 },
+    { no: 28, name: "액고체 대격동", desc: "가라앉는 분자 4쌍 소멸", pool: ['H', 'O', 'Cl', 'Na'], target: 'ANY_SOLID_LIQ', count: 4 },
+    { no: 29, name: "점수 폭발", desc: "35,000점 달성하기", pool: ['H', 'O', 'C', 'N'], target: 'SCORE_GOAL', count: 35000 },
+    { no: 30, name: "그랜드 마스터", desc: "H₂O, CO₂, NaCl 소멸 및 50,000점", pool: ['H', 'O', 'C', 'N', 'Cl', 'Na'], target: 'FINAL_BOSS', count: 50000 }
+];
+
+let board = Array(4).fill().map(() => Array(4).fill(null));
+let score = 0;
+let currentIdx = 0;
+let user = { id: '', name: '' };
+let prog = { destroyed: {} };
+let isLocked = false;
+
+function switchTab(target) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`section-${target}`).classList.add('active');
+    document.getElementById(`btn-${target}`).classList.add('active');
+    if(target === 'rank') fetchRank();
+}
+
+function startGame() {
+    const id = document.getElementById('in-id').value;
+    const nm = document.getElementById('in-name').value;
+    if(!id || !nm) return alert("학번과 이름을 입력하세요.");
+    user = { id, name: nm };
+    document.getElementById('ui-user').innerText = nm;
+    document.getElementById('modal-start').classList.remove('active');
+    initStage();
+}
+
+function initStage() {
+    board = Array(4).fill().map(() => Array(4).fill(null));
+    document.getElementById('tile-layer').innerHTML = '';
+    prog = { destroyed: {} };
+    updateUI();
+    spawn(); spawn();
+}
+
+function spawn() {
+    let empty = [];
+    for(let r=0; r<4; r++) for(let c=0; c<4; c++) if(!board[r][c]) empty.push({r,c});
+    if(!empty.length) return;
+    let {r, c} = empty[Math.floor(Math.random()*empty.length)];
+    let pool = STAGES[currentIdx].pool;
+    board[r][c] = { val: pool[Math.floor(Math.random()*pool.length)], id: Date.now()+Math.random() };
+    render();
+}
+
+function render() {
+    const container = document.getElementById('tile-layer');
+    const presentIds = new Set();
+    for(let r=0; r<4; r++) {
+        for(let c=0; c<4; c++) {
+            let t = board[r][c];
+            if(!t) continue;
+            presentIds.add(t.id);
+            let el = document.getElementById(`t-${t.id}`);
+            if(!el) {
+                el = document.createElement('div');
+                el.id = `t-${t.id}`;
+                el.className = `tile ${MOLECULES[t.val].col}`;
+                container.appendChild(el);
+            }
+            el.style.transform = `translate(${c * (78 + 12)}px, ${r * (78 + 12)}px)`;
+            el.innerHTML = `<span class="sym">${MOLECULES[t.val].html}</span>${MOLECULES[t.val].name ? `<span class="name">${MOLECULES[t.val].name}</span>`:''}`;
+        }
+    }
+    Array.from(container.children).forEach(ch => { if(!presentIds.has(Number(ch.id.split('-')[1]))) container.removeChild(ch); });
+}
+
+function move(dir) {
+    if(isLocked) return;
+    let moved = false;
+    let turnScore = 0;
+    
+    // 방향 벡터 및 처리 순서 정의
+    const config = {
+        'ArrowUp':    { dr: -1, dc: 0, rRange: [0,1,2,3], cRange: [0,1,2,3] },
+        'ArrowDown':  { dr: 1, dc: 0, rRange: [3,2,1,0], cRange: [0,1,2,3] },
+        'ArrowLeft':  { dr: 0, dc: -1, rRange: [0,1,2,3], cRange: [0,1,2,3] },
+        'ArrowRight': { dr: 0, dc: 1, rRange: [0,1,2,3], cRange: [3,2,1,0] }
+    }[dir];
+    
+    if(!config) return;
+
+    // 타일 병합 여부 기록용 (한 턴에 한 번만 병합)
+    let mergedPos = new Set();
+
+    config.rRange.forEach(r => {
+        config.cRange.forEach(c => {
+            if(!board[r][c]) return;
+            
+            let cr = r, cc = c;
+            while(true) {
+                let nr = cr + config.dr;
+                let nc = cc + config.dc;
+
+                if(nr < 0 || nr >= 4 || nc < 0 || nc >= 4) break;
+
+                if(!board[nr][nc]) {
+                    // 빈 공간으로 이동
+                    board[nr][nc] = board[cr][cc];
+                    board[cr][cc] = null;
+                    cr = nr; cc = nc;
+                    moved = true;
+                } else {
+                    // 다른 타일과 충돌
+                    let res = checkMerge(board[cr][cc].val, board[nr][nc].val);
+                    if(res && !mergedPos.has(`${nr},${nc}`)) {
+                        if(res === 'DESTROY') {
+                            const val = board[nr][nc].val;
+                            turnScore += (MOLECULES[val].w * 100);
+                            createExplosion(nr, nc, MOLECULES[val].col);
+                            prog.destroyed[val] = (prog.destroyed[val]||0)+1;
+                            board[nr][nc] = null;
+                        } else {
+                            board[nr][nc] = { val: res, id: Date.now()+Math.random() };
+                            prog.destroyed['MAKE_'+res] = (prog.destroyed['MAKE_'+res]||0)+1;
+                            turnScore += 10;
+                            mergedPos.add(`${nr},${nc}`);
+                        }
+                        board[cr][cc] = null;
+                        moved = true;
+                    }
+                    break;
+                }
+            }
+        });
+    });
+
+    if(moved) {
+        // 움직임이 끝난 후 중력 적용
+        setTimeout(() => {
+            gravity();
+            score += turnScore;
+            spawn();
+            updateUI();
+            checkStage();
+        }, 110); // 타일 이동 애니메이션 시간 확보
+    }
+}
+
+function checkMerge(a, b) {
+    if(a === b && MOLECULES[a].type !== 'elem') return 'DESTROY';
+    return RECIPES[a+'+'+b] || RECIPES[b+'+'+a] || null;
+}
+
+function gravity() {
+    for(let c=0; c<4; c++) {
+        let col = [];
+        for(let r=0; r<4; r++) col.push(board[r][c]);
+        
+        let gas = col.filter(t => t && MOLECULES[t.val].type === 'gas');
+        let heavy = col.filter(t => t && (MOLECULES[t.val].type === 'liq' || MOLECULES[t.val].type === 'sol'));
+        let ele = col.map(t => (t && MOLECULES[t.val].type === 'elem') ? t : null);
+        
+        let nCol = Array(4).fill(null);
+        // 원소는 제자리 유지 (만약 비었으면 아래 과정에서 채워짐)
+        ele.forEach((t, i) => { if(t) nCol[i] = t; });
+        
+        // 기체는 위에서부터 빈 칸 채움
+        gas.forEach(g => {
+            for(let i=0; i<4; i++) if(!nCol[i]) { nCol[i] = g; break; }
+        });
+        
+        // 액체/고체는 아래에서부터 빈 칸 채움
+        heavy.forEach(h => {
+            for(let i=3; i>=0; i--) if(!nCol[i]) { nCol[i] = h; break; }
+        });
+        
+        for(let r=0; r<4; r++) board[r][c] = nCol[r];
+    }
+    render();
+}
+
+function updateUI() {
+    const s = STAGES[currentIdx];
+    document.getElementById('ui-score').innerText = score.toLocaleString();
+    document.getElementById('ui-m-no').innerText = `STAGE ${String(s.no).padStart(2, '0')}`;
+    document.getElementById('ui-m-name').innerText = s.name;
+    document.getElementById('ui-m-desc').innerText = s.desc;
+    let txt = "";
+    if(s.target === 'SCORE_GOAL') txt = `Score: ${score} / ${s.count}`;
+    else if(s.target === 'FINAL_BOSS') txt = `H2O:${prog.destroyed['H2O']||0}/1 CO2:${prog.destroyed['CO2']||0}/1 NaCl:${prog.destroyed['NaCl']||0}/1`;
+    else txt = `${s.target}: ${prog.destroyed[s.target] || 0} / ${s.count}`;
+    document.getElementById('ui-m-prog').innerText = txt;
+}
+
+function checkStage() {
+    const s = STAGES[currentIdx];
+    let cleared = false;
+    switch(s.target) {
+        case 'SCORE_GOAL': cleared = score >= s.count; break;
+        case 'ANY_GAS_5': cleared = ((prog.destroyed['H2']||0) + (prog.destroyed['O2']||0)) >= s.count; break;
+        case 'MIX_9': cleared = (prog.destroyed['O2']>=1 && prog.destroyed['H2O']>=1); break;
+        case 'ANY_10': cleared = ((prog.destroyed['H2']||0) + (prog.destroyed['O2']||0) + (prog.destroyed['H2O']||0)) >= s.count; break;
+        case 'MIX_14': cleared = (prog.destroyed['H2O']>=1 && prog.destroyed['CO2']>=1); break;
+        case 'MIX_19': cleared = (prog.destroyed['N2']>=1 && prog.destroyed['NH3']>=1); break;
+        case 'MIX_25': cleared = (prog.destroyed['HCl']>=1 && prog.destroyed['NaCl']>=1); break;
+        case 'MIX_26': cleared = (prog.destroyed['H2O']>=1 && prog.destroyed['NaCl']>=1); break;
+        case 'ANY_GAS_ALL': 
+            let gAll = 0; Object.keys(MOLECULES).forEach(k => { if(MOLECULES[k].type === 'gas') gAll += (prog.destroyed[k] || 0); });
+            cleared = gAll >= s.count; break;
+        case 'ANY_SOLID_LIQ':
+            let slAll = (prog.destroyed['H2O']||0) + (prog.destroyed['NaCl']||0);
+            cleared = slAll >= s.count; break;
+        case 'FINAL_BOSS':
+            cleared = (prog.destroyed['H2O']>=1 && prog.destroyed['CO2']>=1 && prog.destroyed['NaCl']>=1 && score >= 50000); break;
+        default: cleared = (prog.destroyed[s.target] >= s.count);
+    }
+    if(cleared) {
+        isLocked = true;
+        const banner = document.getElementById('stage-banner');
+        banner.style.display = 'block';
+        setTimeout(() => {
+            banner.style.display = 'none';
+            currentIdx++;
+            if(currentIdx >= STAGES.length) finishGame();
+            else { isLocked = false; initStage(); }
+        }, 1500);
+    }
+    if(!canMove()) finishGame();
+}
+
+function canMove() {
+    for(let r=0; r<4; r++) {
+        for(let c=0; c<4; c++) {
+            if(!board[r][c]) return true;
+            if(r<3 && checkMerge(board[r][c].val, board[r+1][c].val)) return true;
+            if(c<3 && checkMerge(board[r][c].val, board[r][c+1].val)) return true;
+        }
+    }
+    return false;
+}
+
+function createExplosion(r, c, colorClass) {
+    const wrapper = document.getElementById('board-wrapper');
+    const x = c * (78 + 12) + 78/2 + 12;
+    const y = r * (78 + 12) + 78/2 + 12;
+    const color = colorClass === 't-gas' ? '#0ea5e9' : colorClass === 't-liq' ? '#2563eb' : '#94a3b8';
+    for(let i=0; i<12; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = x + 'px'; p.style.top = y + 'px';
+        p.style.backgroundColor = color;
+        p.style.setProperty('--tx', `${(Math.random()-0.5)*150}px`);
+        p.style.setProperty('--ty', `${(Math.random()-0.5)*150}px`);
+        p.style.animation = 'explode 0.6s forwards ease-out';
+        wrapper.appendChild(p);
+        setTimeout(() => p.remove(), 600);
+    }
+}
+
+async function finishGame() {
+    isLocked = true;
+    alert(`실험 종료! 최종 점수: ${score}`);
+    if(GAS_URL) {
+        try {
+            await fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({ ...user, score, stage: currentIdx + 1 })
+            });
+        } catch(e) { console.error("데이터 전송 실패", e); }
+    }
+    switchTab('rank');
+}
+
+async function fetchRank() {
+    const list = document.getElementById('rank-list');
+    list.innerHTML = '<div style="padding:40px; text-align:center; color:#64748b;">로딩 중...</div>';
+    try {
+        const res = await fetch(GAS_URL);
+        const data = await res.json();
+        list.innerHTML = "";
+        data.forEach((r, i) => {
+            const item = document.createElement('div');
+            item.className = `rank-item ${i < 3 ? 'top-' + (i+1) : ''}`;
+            item.innerHTML = `
+                <div class="rank-n">${i+1}</div>
+                <div class="rank-info"><b>${r.name}</b><small>${r.id} | Stage ${r.stage}</small></div>
+                <div class="rank-score eng">${r.score.toLocaleString()}</div>
+            `;
+            list.appendChild(item);
+        });
+    } catch(e) { list.innerHTML = '<div style="padding:40px; text-align:center; color:#ff007a;">오류 발생</div>'; }
+}
+
+window.addEventListener('keydown', e => move(e.key));
+let ts = null;
+window.addEventListener('touchstart', e => { ts = { x: e.touches[0].clientX, y: e.touches[0].clientY }; });
+window.addEventListener('touchend', e => {
+    if(!ts) return;
+    let dx = e.changedTouches[0].clientX - ts.x, dy = e.changedTouches[0].clientY - ts.y;
+    if(Math.max(Math.abs(dx), Math.abs(dy)) < 30) return;
+    if(Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
+    else move(dy > 0 ? 'ArrowDown' : 'ArrowUp');
+    ts = null;
+});
+</script>
+</body>
+</html>
